@@ -1,0 +1,506 @@
+// ─────────────────────────────────────────────────────────────
+// VendorVerse — Multi-Vendor E-Commerce Platform
+// Prisma Schema — Phase 1 Foundation
+// ─────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── ENUMS ────────────────────────────────────────────────────
+
+enum Role {
+  CUSTOMER
+  SELLER
+  ADMIN
+}
+
+enum OrderStatus {
+  PLACED
+  PAYMENT_SUCCESSFUL
+  ACCEPTED
+  PACKED
+  SHIPPED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  COMPLETED
+  CANCELLED
+  REFUND_REQUESTED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  RAZORPAY
+  COD
+}
+
+enum CouponType {
+  FLAT
+  PERCENTAGE
+  FREE_SHIPPING
+  FIRST_PURCHASE
+  CATEGORY
+}
+
+enum ActivityType {
+  STOCK_IN
+  STOCK_OUT
+  STOCK_ADJUSTMENT
+  ORDER_PLACED
+  ORDER_STATUS_CHANGE
+  PRODUCT_CREATED
+  PRODUCT_UPDATED
+  PRICE_CHANGE
+  USER_ACTION
+  ADMIN_ACTION
+}
+
+enum NotificationType {
+  NEW_ORDER
+  ORDER_SHIPPED
+  ORDER_DELIVERED
+  BACK_IN_STOCK
+  PRICE_DROP
+  PAYMENT_SUCCESS
+  LOW_STOCK
+  REVIEW_RECEIVED
+  COUPON_CREATED
+  SYSTEM
+}
+
+// ─── USERS & AUTH ─────────────────────────────────────────────
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password      String?  // Hashed bcrypt password
+  name          String
+  phone         String?
+  avatar        String?
+  role          Role     @default(CUSTOMER)
+  emailVerified Boolean  @default(true)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  store         Store?
+  cart          Cart?
+  orders        Order[]
+  reviews       Review[]
+  addresses     Address[]
+  wishlists     Wishlist[]
+  notifications Notification[]
+  activityLogs  ActivityLog[]
+
+  @@index([email])
+  @@index([role])
+}
+
+// ─── STORE (= Seller profile) ─────────────────────────────────
+
+model Store {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  name         String
+  slug         String   @unique
+  description  String?
+  logo         String?
+  banner       String?
+  phone        String?
+  email        String?
+  address      String?
+  city         String?
+  state        String?
+  pincode      String?
+  gstNumber    String?
+  isVerified   Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  rating       Float    @default(0)
+  totalReviews Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products Product[]
+  coupons  Coupon[]
+
+  @@index([slug])
+  @@index([userId])
+}
+
+// ─── CATEGORIES ───────────────────────────────────────────────
+
+model Category {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  image       String?
+  parentId    String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
+  products Product[]
+
+  @@index([slug])
+  @@index([parentId])
+}
+
+// ─── PRODUCTS ─────────────────────────────────────────────────
+
+model Product {
+  id              String   @id @default(uuid())
+  storeId         String
+  categoryId      String
+  name            String
+  slug            String   @unique
+  description     String
+  brand           String?
+  images          String[] // Supabase Storage URLs
+  video           String?  // bonus: product video URL
+  sku             String?
+  barcode         String?
+  price           Int      // in paise (₹1 = 100 paise)
+  compareAtPrice  Int?     // original price before discount, in paise
+  discount        Int      @default(0) // percentage 0–100
+  weight          Float?   // in grams
+  dimensions      String?  // "LxWxH" format
+  shippingCharge  Int      @default(0) // in paise
+  isFeatured      Boolean  @default(false)
+  isPublished     Boolean  @default(true)
+  isActive        Boolean  @default(true)
+  totalSold       Int      @default(0)
+  avgRating       Float    @default(0)
+  totalReviews    Int      @default(0)
+  tags            String[]
+  metaTitle       String?
+  metaDescription String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  store     Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  category  Category         @relation(fields: [categoryId], references: [id])
+  variants  ProductVariant[]
+  reviews   Review[]
+  wishlists Wishlist[]
+
+  @@index([storeId])
+  @@index([categoryId])
+  @@index([slug])
+  @@index([name])
+  @@index([isPublished, isActive])
+  @@index([isFeatured])
+  @@index([price])
+  @@index([avgRating])
+  @@index([totalSold])
+  @@index([createdAt])
+}
+
+// ─── PRODUCT VARIANTS ─────────────────────────────────────────
+// Stock lives here — single source of truth.
+// Stock status is DERIVED at read-time:
+//   stock === 0 → out of stock
+//   stock <= lowStockThreshold → low stock
+//   else → in stock
+
+model ProductVariant {
+  id                String    @id @default(uuid())
+  productId         String
+  type              String    // "size", "color", "storage", "RAM", "material", "custom"
+  value             String    // "M", "Red", "128GB", etc.
+  sku               String?
+  price             Int?      // override price in paise; null = use product.price
+  stock             Int       @default(0)
+  lowStockThreshold Int       @default(5) // seller-editable; triggers low-stock alerts
+  restockEta        DateTime? // seller's expected restock date
+  restockNote       String?   // freeform alternative ("after Diwali", "within a week")
+  images            String[]
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  product      Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  cartItems    CartItem[]
+  orderItems   OrderItem[]
+  activityLogs ActivityLog[]
+
+  @@unique([productId, type, value])
+  @@index([productId])
+  @@index([stock])
+}
+
+// ─── CART ──────────────────────────────────────────────────────
+
+model Cart {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+}
+
+model CartItem {
+  id               String  @id @default(uuid())
+  cartId           String
+  productVariantId String
+  quantity         Int     @default(1)
+  savedForLater    Boolean @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  cart           Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, productVariantId])
+  @@index([cartId])
+}
+
+// ─── WISHLIST ─────────────────────────────────────────────────
+
+model Wishlist {
+  id        String   @id @default(uuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@index([productId])
+}
+
+// ─── ORDERS ───────────────────────────────────────────────────
+
+model Order {
+  id                String      @id @default(uuid())
+  orderNumber       String      @unique // human-readable: "ORD-XXXXXX"
+  userId            String
+  storeId           String      // denormalized for faster seller queries
+  status            OrderStatus @default(PLACED)
+  subtotal          Int         // in paise
+  discount          Int         @default(0) // in paise
+  shippingCharge    Int         @default(0) // in paise
+  tax               Int         @default(0) // in paise
+  total             Int         // in paise
+  couponId          String?
+  shippingAddressId String?
+  billingAddressId  String?
+
+  // Shipping info (lightweight — no real courier API)
+  courierPartner    String?
+  trackingNumber    String?
+  estimatedDelivery DateTime?
+  deliveredAt       DateTime?
+
+  // Cancellation
+  cancelReason String?
+  cancelledAt  DateTime?
+
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User        @relation(fields: [userId], references: [id])
+  items   OrderItem[]
+  payment Payment?
+
+  @@index([userId])
+  @@index([storeId])
+  @@index([orderNumber])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id               String @id @default(uuid())
+  orderId          String
+  productVariantId String
+  productName      String // snapshot at time of order
+  variantInfo      String // snapshot: "Size: M, Color: Red"
+  quantity         Int
+  unitPrice        Int    // in paise, snapshot
+  totalPrice       Int    // in paise
+
+  order          Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  @@index([orderId])
+}
+
+// ─── PAYMENTS ─────────────────────────────────────────────────
+
+model Payment {
+  id                String        @id @default(uuid())
+  orderId           String        @unique
+  method            PaymentMethod
+  status            PaymentStatus @default(PENDING)
+  amount            Int           // in paise
+  currency          String        @default("INR")
+  razorpayOrderId   String?       @unique
+  razorpayPaymentId String?       @unique
+  razorpaySignature String?
+  failureReason     String?
+  paidAt            DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([razorpayOrderId])
+  @@index([status])
+}
+
+// ─── COUPONS ──────────────────────────────────────────────────
+
+model Coupon {
+  id            String     @id @default(uuid())
+  code          String     @unique
+  type          CouponType
+  value         Int        // amount in paise (FLAT) or percentage (PERCENTAGE)
+  minOrderValue Int?       // in paise
+  maxDiscount   Int?       // cap in paise (for percentage coupons)
+  categoryId    String?    // for CATEGORY type
+  storeId       String?    // null = platform-wide
+  usageLimit    Int?       // max total uses
+  usedCount     Int        @default(0)
+  perUserLimit  Int        @default(1)
+  isActive      Boolean    @default(true)
+  startsAt      DateTime   @default(now())
+  expiresAt     DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  store Store? @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([code])
+  @@index([storeId])
+  @@index([isActive])
+}
+
+// ─── REVIEWS ──────────────────────────────────────────────────
+
+model Review {
+  id                 String    @id @default(uuid())
+  userId             String
+  productId          String
+  rating             Int       // 1–5
+  title              String?
+  comment            String?
+  images             String[]
+  isVerifiedPurchase Boolean   @default(false)
+  sellerReply        String?
+  sellerRepliedAt    DateTime?
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId]) // one review per product per user
+  @@index([productId])
+  @@index([rating])
+}
+
+// ─── ADDRESSES ────────────────────────────────────────────────
+
+model Address {
+  id           String  @id @default(uuid())
+  userId       String
+  label        String? // "Home", "Office", etc.
+  fullName     String
+  phone        String
+  addressLine1 String
+  addressLine2 String?
+  city         String
+  state        String
+  pincode      String
+  country      String  @default("India")
+  isDefault    Boolean @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─── NOTIFICATIONS ────────────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?            // flexible payload (orderId, productId, etc.)
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+// ─── ACTIVITY LOG (Audit trail + Inventory history) ───────────
+// Serves two spec requirements in one table:
+// 1. Inventory history — every stock change logged with delta + snapshot
+// 2. Audit logs — all significant actions (order changes, product edits, etc.)
+
+model ActivityLog {
+  id               String       @id @default(uuid())
+  userId           String?
+  type             ActivityType
+  description      String
+  entityType       String?      // "Product", "Order", "User", etc.
+  entityId         String?
+  productVariantId String?      // for stock changes
+  stockDelta       Int?         // +50, −3, etc.
+  stockAfter       Int?         // snapshot of stock after change
+  metadata         Json?        // any additional structured data
+  ipAddress        String?
+  createdAt        DateTime     @default(now())
+
+  user           User?           @relation(fields: [userId], references: [id])
+  productVariant ProductVariant? @relation(fields: [productVariantId], references: [id])
+
+  @@index([userId])
+  @@index([type])
+  @@index([entityType, entityId])
+  @@index([productVariantId])
+  @@index([createdAt])
+}
+
+// ─── SETTINGS (Admin key-value config) ────────────────────────
+
+model Settings {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@index([key])
+}
