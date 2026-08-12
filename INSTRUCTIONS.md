@@ -19,9 +19,9 @@
             +------------------------------+------------------------------+
             |                              |                              |
 +-----------v-----------+      +-----------v-----------+      +-----------v-----------+
-|    AI Importer        |      |  Marketplace Engine   |      |  Multi-Role Hub       |
-| Gemini 1.5 Flash      |      |  Prisma ORM v6.3.0    |      |  Role Switcher Bar    |
-| Vision & Zod Parser   |      |  PostgreSQL (Supabase)|      | Customer/Seller/Admin |
+|    AI Importer        |      | Express.js + Next API |      | AWS S3 Object Storage |
+| Gemini 1.5 Flash      |      | Prisma ORM v6.3.0     |      | Presigned URLs & SDK  |
+| Vision & Zod Parser   |      | PostgreSQL (Supabase) |      | Images & Videos       |
 +-----------------------+      +-----------+-----------+      +-----------------------+
                                            |
                                +-----------v-----------+
@@ -37,11 +37,13 @@
 | Layer | Technology Used | Rationale |
 | :--- | :--- | :--- |
 | **Framework** | **Next.js 16 (App Router)** | Full-stack React 19 application with edge middleware and server route handlers. |
+| **Backend Engine** | **Express.js + Next.js API** | Express.js application middleware integrated inside Next.js API route handlers (`src/lib/expressApp.ts`). |
+| **File Storage** | **AWS S3 (`@aws-sdk/client-s3`)** | Pre-signed upload URLs and direct S3 object storage for product images, videos, and store media (`src/lib/s3.ts`). |
 | **Language** | **TypeScript 5** | Strict type safety across database schemas, API contracts, and UI components. |
 | **Styling** | **Tailwind CSS v4 + Custom CSS** | Luxury fashion editorial aesthetic (noise overlay, glassmorphism headers, high contrast). |
 | **Database** | **PostgreSQL (Supabase)** | Relational database with foreign key cascades, unique indices, and JSON data support. |
-| **ORM** | **Prisma Client v6.3.0** | Type-safe query builder locked to v6.3.0 for database migrations and seed scripts. |
-| **Authentication** | **Custom JWT (`jose` + `bcryptjs`) + Google OAuth** | Lightweight HTTP-only session cookies with Google ID Token verification via `google-auth-library`. |
+| **ORM** | **Prisma Client v6.3.0** | 19 entities: Users, Roles, Sellers, Stores, Products, Categories, Variants, Inventory, Cart, Wishlist, Orders, Payments, Coupons, Reviews, Addresses, Notifications, Logs, Settings. |
+| **Authentication** | **Custom JWT (`jose` + `bcryptjs`) + Google OAuth** | Lightweight HTTP-only session cookies with Google ID Token verification via `google-auth-library` and OTP password resets. |
 | **Payments** | **Razorpay Gateway + Webhooks** | Online payments (UPI, Cards, Net Banking) with HMAC SHA-256 webhook signature verification + COD. |
 | **AI Importer** | **Google Gemini 1.5 Flash Vision** | Multimodal image/text product extraction and single-pass LLM spreadsheet column mapping. |
 | **Testing** | **Playwright (`@playwright/test`)** | Automated End-to-End E2E test suite covering store browsing, importer presets, and dashboards. |
@@ -113,9 +115,10 @@ The application includes a universal **Role Switcher Navigation Bar** at the top
 - **Path B (Spreadsheet)**: Calls Gemini ONCE on headers + 2-3 sample rows to map original headers (*"Rate"*, *"Cost/pc"*, *"Stk"*) to canonical schema fields, then parses remaining rows deterministically.
 - **Editable Review Table**: Sellers review and edit extracted listings before publishing to live stores (never auto-publishes raw AI output).
 
-### 3. Security & Safety
-- **Razorpay Webhook Verification**: Uses HMAC SHA-256 signature verification (`x-razorpay-signature`) in `/api/payments/webhook`.
-- **Rate Limiting & XSS Sanitization**: In-memory token bucket rate limiting on sensitive routes and HTML sanitization on user input.
+### 3. AWS S3 Object Storage & Express Backend Engine
+- **AWS S3 Presigned Uploads**: `/api/upload/s3` generates presigned URLs for client-side uploads of product images and video demonstrations.
+- **Express.js API Bridge**: `src/lib/expressApp.ts` integrates Express middleware inside Next.js App Router API route handlers.
+- **Password Reset OTP**: `/api/auth/reset-password` handles 6-digit OTP verification and password reset links.
 
 ---
 
@@ -128,7 +131,7 @@ Devfusion/
 ├── tests/
 │   └── marketplace.spec.ts       <-- E2E Playwright test suite
 ├── prisma/
-│   ├── schema.prisma             <-- 17 models + 6 enums database schema
+│   ├── schema.prisma             <-- 19 models + 6 enums database schema
 │   └── seed.ts                   <-- Database seed script
 ├── src/
 │   ├── app/
@@ -143,6 +146,8 @@ Devfusion/
 │   ├── components/
 │   │   └── RoleSwitcherNav.tsx   <-- Top Universal Role Switcher Bar
 │   └── lib/
+│       ├── expressApp.ts         <-- Express.js API app bridge
+│       ├── s3.ts                 <-- AWS S3 SDK storage client
 │       ├── gemini.ts             <-- Gemini Flash AI Extraction Module
 │       ├── prisma.ts             <-- Singleton Prisma Client instance
 │       └── auth/                 <-- JWT & RBAC Authentication helpers
