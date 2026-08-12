@@ -5,11 +5,22 @@ const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'devfusion-super-secret-jwt-key-2026-hackathon'
 );
 
+const PROTECTED_PREFIXES = [
+  '/dashboard',
+  '/customer',
+  '/cart',
+  '/checkout',
+  '/orders',
+  '/inventory',
+  '/seller',
+  '/admin',
+];
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const isProtected = PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 
-  // Protect Admin panel routes ONLY
-  if (pathname.startsWith('/admin')) {
+  if (isProtected) {
     const token = request.cookies.get('auth_token')?.value;
 
     if (!token) {
@@ -21,13 +32,21 @@ export async function middleware(request: NextRequest) {
 
     try {
       const { payload } = await jwtVerify(token, JWT_SECRET);
-      const userRole = (payload.role as string) || '';
+      const userRole = (payload.role as string) || 'CUSTOMER';
 
-      if (userRole !== 'ADMIN') {
+      if (pathname.startsWith('/admin') && userRole !== 'ADMIN') {
         const redirectUrl = request.nextUrl.clone();
         redirectUrl.pathname = '/login';
         redirectUrl.searchParams.set('redirectTo', pathname);
-        redirectUrl.searchParams.set('error', 'Admin access required');
+        redirectUrl.searchParams.set('error', 'Admin role required');
+        return NextResponse.redirect(redirectUrl);
+      }
+
+      if (pathname.startsWith('/seller') && userRole !== 'SELLER' && userRole !== 'ADMIN') {
+        const redirectUrl = request.nextUrl.clone();
+        redirectUrl.pathname = '/login';
+        redirectUrl.searchParams.set('redirectTo', pathname);
+        redirectUrl.searchParams.set('error', 'Seller role required');
         return NextResponse.redirect(redirectUrl);
       }
     } catch {
@@ -38,7 +57,6 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // All other routes (Customer, Seller, Importer, Catalog) remain open freely
   return NextResponse.next();
 }
 
