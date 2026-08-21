@@ -3,12 +3,19 @@ import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
-const seedAdminEmail = process.env.SEED_ADMIN_EMAIL ?? 'admin@vendorverse.com';
-const seedSellerEmail = process.env.SEED_SELLER_EMAIL ?? 'seller@vendorverse.com';
-const seedCustomerEmail = process.env.SEED_CUSTOMER_EMAIL ?? 'customer@vendorverse.com';
-const seedAdminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'Admin@123456';
-const seedSellerPassword = process.env.SEED_SELLER_PASSWORD ?? 'Seller@123456';
-const seedCustomerPassword = process.env.SEED_CUSTOMER_PASSWORD ?? 'Customer@123456';
+const readSeedEnv = (name: string, fallback?: string): string | undefined => process.env[name] ?? fallback;
+const requireSeedEnv = (name: string): string => {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is required`);
+  return value;
+};
+
+const seedAdminEmail = readSeedEnv('SEED_ADMIN_EMAIL') ?? 'admin@vendorverse.com';
+const seedSellerEmail = readSeedEnv('SEED_SELLER_EMAIL') ?? 'seller@vendorverse.com';
+const seedCustomerEmail = readSeedEnv('SEED_CUSTOMER_EMAIL') ?? 'customer@vendorverse.com';
+const seedAdminPassword = requireSeedEnv('SEED_ADMIN_PASSWORD');
+const seedSellerPassword = requireSeedEnv('SEED_SELLER_PASSWORD');
+const seedCustomerPassword = requireSeedEnv('SEED_CUSTOMER_PASSWORD');
 
 interface SeedVariant {
   type: string;
