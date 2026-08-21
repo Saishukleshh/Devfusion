@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import { Role } from '@prisma/client';
 
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'devfusion-super-secret-jwt-key-2026-hackathon'
+  process.env.JWT_SECRET || ''
 );
 
 const COOKIE_NAME = 'auth_token';

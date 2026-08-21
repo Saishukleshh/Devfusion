@@ -1,17 +1,17 @@
-'use client';
+"use client";
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { 
-  Package, 
-  Clock, 
-  CheckCircle2, 
-  Truck, 
-  AlertTriangle, 
-  Bell, 
-  Heart, 
-  Loader2, 
-  Download, 
+import {
+  Package,
+  Clock,
+  CheckCircle2,
+  Truck,
+  AlertTriangle,
+  Bell,
+  Heart,
+  Loader2,
+  Download,
   ShoppingBag,
   MapPin,
   Tag,
@@ -163,9 +163,8 @@ export default function CustomerDashboard() {
         <div className="flex border-b border-neutral-200 mb-8 overflow-x-auto gap-6">
           <button
             onClick={() => setActiveWidgetTab('orders')}
-            className={`pb-4 text-xs font-bold uppercase tracking-wider border-b-2 flex items-center gap-1.5 ${
-              activeWidgetTab === 'orders' ? 'border-black text-black' : 'border-transparent text-neutral-400 hover:text-black'
-            }`}
+            className={`pb-4 text-xs font-bold uppercase tracking-wider border-b-2 flex items-center gap-1.5 ${activeWidgetTab === 'orders' ? 'border-black text-black' : 'border-transparent text-neutral-400 hover:text-black'
+              }`}
           >
             <Package className="w-4 h-4" />
             <span>Active Orders ({orders.length})</span>
@@ -173,9 +172,8 @@ export default function CustomerDashboard() {
 
           <button
             onClick={() => setActiveWidgetTab('wishlist')}
-            className={`pb-4 text-xs font-bold uppercase tracking-wider border-b-2 flex items-center gap-1.5 ${
-              activeWidgetTab === 'wishlist' ? 'border-black text-black' : 'border-transparent text-neutral-400 hover:text-black'
-            }`}
+            className={`pb-4 text-xs font-bold uppercase tracking-wider border-b-2 flex items-center gap-1.5 ${activeWidgetTab === 'wishlist' ? 'border-black text-black' : 'border-transparent text-neutral-400 hover:text-black'
+              }`}
           >
             <Heart className="w-4 h-4 text-rose-600" />
             <span>Wishlist ({wishlist.length})</span>
@@ -183,9 +181,8 @@ export default function CustomerDashboard() {
 
           <button
             onClick={() => setActiveWidgetTab('coupons')}
-            className={`pb-4 text-xs font-bold uppercase tracking-wider border-b-2 flex items-center gap-1.5 ${
-              activeWidgetTab === 'coupons' ? 'border-black text-black' : 'border-transparent text-neutral-400 hover:text-black'
-            }`}
+            className={`pb-4 text-xs font-bold uppercase tracking-wider border-b-2 flex items-center gap-1.5 ${activeWidgetTab === 'coupons' ? 'border-black text-black' : 'border-transparent text-neutral-400 hover:text-black'
+              }`}
           >
             <Tag className="w-4 h-4 text-amber-600" />
             <span>Coupons & Rewards</span>
@@ -193,9 +190,8 @@ export default function CustomerDashboard() {
 
           <button
             onClick={() => setActiveWidgetTab('addresses')}
-            className={`pb-4 text-xs font-bold uppercase tracking-wider border-b-2 flex items-center gap-1.5 ${
-              activeWidgetTab === 'addresses' ? 'border-black text-black' : 'border-transparent text-neutral-400 hover:text-black'
-            }`}
+            className={`pb-4 text-xs font-bold uppercase tracking-wider border-b-2 flex items-center gap-1.5 ${activeWidgetTab === 'addresses' ? 'border-black text-black' : 'border-transparent text-neutral-400 hover:text-black'
+              }`}
           >
             <MapPin className="w-4 h-4" />
             <span>Saved Addresses</span>
